@@ -1,0 +1,39 @@
+# Dados/runtime dos containers
+volumes/logs/*
+volumes/postgres-data/*
+volumes/solr-data/*
+
+# Mantém a estrutura dos diretórios
+!volumes/logs/.gitkeep
+!volumes/postgres-data/.gitkeep
+!volumes/solr-data/.gitkeep
+
+# Dados temporários
+data/*
+!data/.gitkeep
+
+# Configuração gerada/local
+config/*
+!config/.gitkeep
+
+# Logs
+*.log
+
+# Backups
+*.sql
+*.dump
+*.backup
+*.tar
+*.tar.gz
+*.zip
+
+# Credenciais
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Configuração local com possíveis senhas
+dspace-conf/local.cfg

@@ -1,0 +1,1 @@
+docker cp dspace:/dspace/config/. ~/Dspace/dspace-structure/config/

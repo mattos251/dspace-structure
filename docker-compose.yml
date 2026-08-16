@@ -1,0 +1,149 @@
+  GNU nano 7.2                                                                                                                                                                                                                   docker-compose.yml
+networks:
+  dspacenet:
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+services:
+  dspace:
+    container_name: dspace
+    image: dspace/dspace:dspace-9_x
+
+    environment:
+      dspace__P__dir: /dspace
+      dspace__P__name: "DSpace Docker"
+      db__P__url: jdbc:postgresql://dspacedb:5432/dspace
+      db__P__username: dspace
+      db__P__password: dspace
+      solr__P__server: http://dspacesolr:8983/solr
+      proxies__P__trusted__P__ipranges: "172.21.0"
+      LOGGING_CONFIG: /dspace/config/log4j2-container.xml
+
+    depends_on:
+      - dspacedb
+      - dspacesolr
+
+    networks:
+      - dspacenet
+
+    ports:
+      - "8080:8080"
+
+    stdin_open: true
+    tty: true
+
+    volumes:
+      - /home/lucasmatos@in.ibict.br/backup-test/assetstore:/dspace/assetstore
+      - /home/lucasmatos@in.ibict.br/Dspace-cbpf/config/:/dspace/config/
+
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        while ! </dev/tcp/dspacedb/5432; do
+          echo "Aguardando PostgreSQL..."
+          sleep 2
+        done
+
+        while ! </dev/tcp/dspacesolr/8983; do
+          echo "Aguardando Solr..."
+          sleep 2
+        done
+
+        /dspace/bin/dspace database migrate
+
+        exec java -jar /dspace/webapps/server-boot.jar --dspace.dir=/dspace
+
+  dspace-cli:
+    container_name: dspace-cli
+    image: dspace/dspace-cli:dspace-9_x
+
+    depends_on:
+      - dspacedb
+
+    networks:
+      - dspacenet
+
+    stdin_open: true
+    tty: true
+
+    environment:
+      db__P__url: jdbc:postgresql://dspacedb:5432/dspace
+      db__P__username: dspace
+      db__P__password: dspace
+
+    entrypoint:
+      - /bin/bash
+
+    volumes:
+      - /home/lucasmatos@in.ibict.br/backup-test/assetstore:/dspace/assetstore
+      - /home/lucasmatos@in.ibict.br/Dspace-cbpf/config/:/dspace/config/
+      - /home/lucasmatos@in.ibict.br/saf-artigo:/dspace/saf-artigo
+
+  dspacedb:
+    container_name: dspacedb
+    image: postgres:16
+
+    environment:
+      POSTGRES_DB: dspace
+      POSTGRES_USER: dspace
+      POSTGRES_PASSWORD: dspace
+      PGDATA: /pgdata
+
+    networks:
+      - dspacenet
+
+    stdin_open: true
+    tty: true
+
+    volumes:
+      - /home/lucasmatos@in.ibict.br/Dspace-cbpf/volumes/postgres-data:/pgdata
+
+  dspacesolr:
+    container_name: dspacesolr
+    image: dspace/dspace-solr:dspace-9.0
+
+    user: root
+
+    networks:
+      - dspacenet
+
+    ports:
+      - "127.0.0.1:8983:8983"
+
+    stdin_open: true
+    tty: true
+
+    working_dir: /var/solr/data
+
+    volumes:
+      - /home/lucasmatos@in.ibict.br/Dspace-cbpf/volumes/solr-data:/var/solr/data
+
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        init-var-solr
+
+        precreate-core authority /opt/solr/server/solr/configsets/authority
+        cp -rn /opt/solr/server/solr/configsets/authority/* authority
+
+        precreate-core oai /opt/solr/server/solr/configsets/oai
+        cp -rn /opt/solr/server/solr/configsets/oai/* oai
+
+        precreate-core search /opt/solr/server/solr/configsets/search
+        cp -rn /opt/solr/server/solr/configsets/search/* search
+
+        precreate-core statistics /opt/solr/server/solr/configsets/statistics
+        cp -rn /opt/solr/server/solr/configsets/statistics/* statistics
+
+        precreate-core qaevent /opt/solr/server/solr/configsets/qaevent
+        cp -rn /opt/solr/server/solr/configsets/qaevent/* qaevent
+
+        precreate-core suggestion /opt/solr/server/solr/configsets/suggestion
+        cp -rn /opt/solr/server/solr/configsets/suggestion/* suggestion
+
+        chown -R solr:solr /var/solr
+
+        exec runuser -u solr -- solr-foreground
