@@ -2,7 +2,7 @@
 
 # Script para criar as pastas que não podem ser rastreadas vazias no git
 # Isso permite que as pastas sejam criadas automaticamente mas continuem vazias
-
+mkdir -p volumes
 mkdir -p volumes/logs
 mkdir -p volumes/postgres-data
 mkdir -p volumes/solr-data
