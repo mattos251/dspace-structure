@@ -1,10 +1,10 @@
 # Dados/runtime dos containers
-volumes/logs/*
+assetstore/*
 volumes/postgres-data/*
 volumes/solr-data/*
 
 # Mantém a estrutura dos diretórios
-!volumes/logs/.gitkeep
+!assetstore/.gitkeep
 !volumes/postgres-data/.gitkeep
 !volumes/solr-data/.gitkeep
 
@@ -30,10 +30,11 @@ config/*
 # Credenciais
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 *.p12
 *.pfx
 
 # Configuração local com possíveis senhas
-dspace-conf/local.cfg
+config/local.cfg

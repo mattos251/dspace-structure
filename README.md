@@ -1,129 +1,111 @@
-# DSpace Structure - Setup Guia de Configuração
+# DSpace Structure
 
-## 📋 Pré-requisitos
+Ambiente Docker do backend DSpace 9, PostgreSQL e Solr. A configuracao DSpace versionada fica em `config/` e e montada em `/dspace/config` nos containers.
 
-- Docker e Docker Compose instalados
+## Pre-requisitos
+
+- Docker Engine e o plugin Docker Compose
 - Git
-- Node.js (para PM2 com ecosystem.config.js)
+- Node.js e PM2 somente para executar o frontend Angular fora do Docker
 
-## 🚀 Início Rápido
+## Instalacao do backend
 
-Siga os passos abaixo para inicializar o projeto:
-
-### 1. Clone do Repositório
+### 1. Obter o projeto
 
 ```bash
 git clone <seu-repositorio>
 cd dspace-structure
 ```
 
-### 2. Inicializar Diretórios
-
-Execute o script de inicialização para criar a estrutura de diretórios necessária:
+### 2. Criar os diretorios persistentes
 
 ```bash
-bash init-dirs.sh
+chmod +x init-dirs.sh
+./init-dirs.sh
 ```
 
-Este script cria automaticamente os diretórios e volumes necessários para o projeto.
+O script cria o `assetstore`, os dados do PostgreSQL e os indices Solr. O conteudo desses diretorios nao e versionado pelo Git.
 
-## 🐳 Docker Compose
+### 3. Definir a configuracao local
 
-Inicie os containers com:
+Crie o arquivo de ambiente e ajuste os valores para esta implantacao:
 
 ```bash
-docker-compose up -d
+cp .env.example .env
 ```
 
-Verifique o status:
+No `.env`, defina uma senha forte em `DSPACE_DB_PASSWORD` e informe caminhos absolutos existentes para:
+
+```dotenv
+DSPACE_ASSETSTORE_DIR=/srv/dspace/assetstore
+DSPACE_CONFIG_DIR=/srv/dspace/dspace-structure/config
+POSTGRES_DATA_DIR=/srv/dspace/postgres-data
+SOLR_DATA_DIR=/srv/dspace/solr-data
+```
+
+Os caminhos podem variar por servidor. O Compose le o `.env` ao lado de `docker-compose.yml`; ele nao deve ser enviado ao Git.
+
+`DSPACE_CONFIG_DIR` deve apontar para a pasta `config/` deste repositorio. Nao copie configuracoes do container depois de iniciar: esse bind mount ja substitui `/dspace/config` e deve conter a configuracao completa antes do primeiro boot.
+
+### 4. Permissoes dos diretorios
+
+O usuario Linux que executa o Docker deve conseguir ler os diretorios configurados. Se a instalacao e administrada pelo usuario `dspace`, ele pode ser o dono da pasta do projeto e do assetstore:
 
 ```bash
-docker-compose ps
+sudo chown -R dspace:dspace /srv/dspace/dspace-structure /srv/dspace/assetstore
 ```
 
-Pare os containers:
+Nao aplique `chown -R dspace:dspace` em `POSTGRES_DATA_DIR` ou `SOLR_DATA_DIR`: esses volumes sao gravados pelos usuarios dos respectivos containers. O servico Solr ajusta seu proprio volume na inicializacao.
+
+### 5. Iniciar os containers
 
 ```bash
-docker-compose down
+docker compose -p d9 up -d
+docker compose -p d9 ps
+docker compose -p d9 logs -f dspace
 ```
 
+O backend aguarda PostgreSQL e Solr, executa as migracoes do banco e responde em `http://localhost:8080/server` por padrao. Ajuste `dspace.server.url` e `dspace.ui.url` em `config/local.cfg` para os enderecos publicos da implantacao.
 
-### 3. Copiar Configurações do Docker
+### 6. Criar o administrador inicial
 
-Após os containers estarem em execução, copie as configurações do DSpace para o diretório raiz do projeto:
+Quando o backend estiver em execucao, crie a conta administradora:
 
 ```bash
-docker cp dspace:/dspace/config/. ~/Dspace/dspace-structure/dspace-config/
+docker compose -p d9 run --rm dspace-cli /dspace/bin/dspace create-administrator
 ```
 
-Isso garante que as configurações estejam sincronizadas com o projeto.
-
-## 📁 Estrutura do Projeto
-
-```
-dspace-structure/
-├── docker-compose.yml       # Configuração dos containers Docker
-├── ecosystem.config.js       # Configuração do PM2
-├── init-dirs.sh              # Script de inicialização
-├── README.md                 # Este arquivo
-├── data/                     # Dados gerais do projeto
-├── dspace-config/            # Configurações do DSpace (sincronizadas do container)
-│   ├── local.cfg             # Configurações locais
-│   ├── item-submission.xml   # Configuração de submissão de itens
-│   └── submission-forms.xml  # Configuração de formulários
-└── volumes/                  # Volumes Docker persistentes
-    ├── logs/                 # Logs dos containers
-    ├── postgres-data/        # Dados do PostgreSQL
-    └── solr-data/            # Dados do Solr
-```
-
-
-## ⚙️ Configuração
-
-### Arquivos de Configuração
-
-- **local.cfg**: Configure as variáveis específicas do DSpace aqui
-
-- **submission-forms.xml**: Customize os formulários de submissão
-
-- **item-submission.xml**: Customize o fluxo de submissão de itens
-
-### Sincronizar Configurações
-
-Se precisar atualizar as configurações após modificações no container:
+### 7. Parar o ambiente
 
 ```bash
-docker cp dspace:/dspace/config/. ~/Dspace/dspace-structure/dspace-config/
+docker compose -p d9 down
 ```
 
-## 📊 Volumes
+Esse comando preserva assetstore, PostgreSQL e Solr. Use `down -v` apenas se desejar remover volumes nomeados; os bind mounts definidos no `.env` continuam no host.
 
-Os dados são persistidos nos seguintes diretórios:
+## Frontend Angular com PM2
 
-- **logs/**: Logs dos containers (facilita debugging)
-- **postgres-data/**: Banco de dados PostgreSQL
-- **solr-data/**: Índices do Solr
-
-## 🔧 PM2 (Opcional)
-
-Se estiver usando PM2 para gerenciar processos, execute:
+O frontend nao faz parte do `docker-compose.yml`. O arquivo `ecosystem.config.js` espera um projeto Angular separado e deve receber o caminho real desse checkout no campo `cwd` antes de executar:
 
 ```bash
 pm2 start ecosystem.config.js
 pm2 save
-pm2 startup
 ```
 
-## 📝 Notas
+Configure o frontend para usar o endpoint publico definido em `dspace.server.url`.
 
-- Certifique-se de que as portas necessárias estão disponíveis antes de iniciar
-- Verifique os logs em `volumes/logs/` para troubleshooting
-- Sempre execute `init-dirs.sh` antes do primeiro uso
+## Diretorios importantes
 
-## 💡 Troubleshooting
+- `config/`: configuracao DSpace montada nos containers.
+- `assetstore/`: arquivos depositados no repositorio.
+- `volumes/postgres-data/`: dados persistentes do PostgreSQL.
+- `volumes/solr-data/`: indices persistentes do Solr.
+- `data/`: dados locais auxiliares.
 
-Se encontrar problemas:
+## Diagnostico
 
-1. Verifique se os diretórios foram criados: `ls -la volumes/`
-2. Verifique os logs: `docker-compose logs`
-3. Certifique-se de que as permissões estão corretas: `chmod +x init-dirs.sh`
+```bash
+docker compose -p d9 ps
+docker compose -p d9 logs --tail=200 dspace
+docker compose -p d9 logs --tail=200 dspacedb dspacesolr
+```
